@@ -1,0 +1,105 @@
+import os
+
+configfile: "config.yaml"
+
+FASTQ_DIR = config["directories"]["fastq"]
+ALIGN_DIR = config["directories"]["aligned"]
+PEAK_DIR = config["directories"]["peaks"]
+
+SAMPLES = config["samples"]
+PAIRS = config["pairs"]
+
+rule all:
+    input:
+        expand(os.path.join(PEAK_DIR, "{pair}", "{pair}_peaks.narrowPeak"), pair=PAIRS.keys()),
+        expand(os.path.join(FASTQ_DIR, "qc", "{sample}_1_fastqc.html"), sample=SAMPLES.keys()),
+        expand(os.path.join(FASTQ_DIR, "qc", "{sample}_2_fastqc.html"), sample=SAMPLES.keys())
+
+rule download_fastq:
+    output:
+        fq1=os.path.join(FASTQ_DIR, "{sample}_1.fastq.gz"),
+        fq2=os.path.join(FASTQ_DIR, "{sample}_2.fastq.gz")
+    params:
+        accession=lambda wildcards: SAMPLES[wildcards.sample]["sra"]
+    threads: config.get("threads", 8)
+    shell:
+        """
+        mkdir -p {FASTQ_DIR}
+        fasterq-dump --split-files --threads {threads} --outdir {FASTQ_DIR} {params.accession}
+        gzip -f {FASTQ_DIR}/{wildcards.sample}_1.fastq
+        gzip -f {FASTQ_DIR}/{wildcards.sample}_2.fastq
+        """
+
+rule fastqc:
+    input:
+        fq1=os.path.join(FASTQ_DIR, "{sample}_1.fastq.gz"),
+        fq2=os.path.join(FASTQ_DIR, "{sample}_2.fastq.gz")
+    output:
+        html1=os.path.join(FASTQ_DIR, "qc", "{sample}_1_fastqc.html"),
+        html2=os.path.join(FASTQ_DIR, "qc", "{sample}_2_fastqc.html")
+    params:
+        outdir=os.path.join(FASTQ_DIR, "qc")
+    shell:
+        """
+        mkdir -p {params.outdir}
+        fastqc -o {params.outdir} {input.fq1} {input.fq2}
+        """
+
+rule align_bowtie2:
+    input:
+        fq1=os.path.join(FASTQ_DIR, "{sample}_1.fastq.gz"),
+        fq2=os.path.join(FASTQ_DIR, "{sample}_2.fastq.gz")
+    output:
+        bam=os.path.join(ALIGN_DIR, "{sample}.sorted.bam")
+    params:
+        index=config["reference"]["bowtie2_index"],
+        threads=config.get("threads", 8)
+    shell:
+        """
+        mkdir -p {ALIGN_DIR}
+        bowtie2 -x {params.index} -1 {input.fq1} -2 {input.fq2} --threads {params.threads} \
+            | samtools view -bS - \
+            | samtools sort -@ {params.threads} -o {output.bam}
+        """
+
+rule mark_duplicates:
+    input:
+        bam=os.path.join(ALIGN_DIR, "{sample}.sorted.bam")
+    output:
+        bam=os.path.join(ALIGN_DIR, "{sample}.dedup.bam"),
+        metrics=os.path.join(ALIGN_DIR, "{sample}.dedup.metrics.txt")
+    params:
+        threads=config.get("threads", 8)
+    shell:
+        """
+        samtools markdup -@ {params.threads} -r {input.bam} {output.bam} 2> {output.metrics}
+        """
+
+rule index_bam:
+    input:
+        os.path.join(ALIGN_DIR, "{sample}.dedup.bam")
+    output:
+        os.path.join(ALIGN_DIR, "{sample}.dedup.bam.bai")
+    shell:
+        """
+        samtools index {input}
+        """
+
+rule macs2_callpeak:
+    input:
+        treatment=lambda wildcards: os.path.join(ALIGN_DIR, f"{PAIRS[wildcards.pair]['treatment']}.dedup.bam"),
+        control=lambda wildcards: os.path.join(ALIGN_DIR, f"{PAIRS[wildcards.pair]['control']}.dedup.bam"),
+        treatment_index=lambda wildcards: os.path.join(ALIGN_DIR, f"{PAIRS[wildcards.pair]['treatment']}.dedup.bam.bai"),
+        control_index=lambda wildcards: os.path.join(ALIGN_DIR, f"{PAIRS[wildcards.pair]['control']}.dedup.bam.bai")
+    output:
+        os.path.join(PEAK_DIR, "{pair}", "{pair}_peaks.narrowPeak")
+    params:
+        genome=config["macs2"]["genome"],
+        qvalue=config["macs2"].get("qvalue", 0.01)
+    shell:
+        """
+        mkdir -p {os.path.join(PEAK_DIR, wildcards.pair)}
+        macs2 callpeak -t {input.treatment} -c {input.control} \
+            -g {params.genome} -q {params.qvalue} \
+            -n {wildcards.pair} --outdir {os.path.join(PEAK_DIR, wildcards.pair)}
+        """

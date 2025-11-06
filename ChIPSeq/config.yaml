@@ -1,0 +1,24 @@
+threads: 8
+
+directories:
+  fastq: data/fastq
+  aligned: results/aligned
+  peaks: results/peaks
+
+reference:
+  bowtie2_index: /path/to/bowtie2/index/prefix
+
+macs2:
+  genome: hs
+  qvalue: 0.01
+
+samples:
+  SRR1234567:
+    sra: SRR1234567
+  SRR1234568:
+    sra: SRR1234568
+
+pairs:
+  sample1:
+    treatment: SRR1234567
+    control: SRR1234568

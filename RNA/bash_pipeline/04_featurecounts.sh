@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source "$(dirname "$0")/pipeline_config.sh"
+
 input_dir=$1
 output_dir=$2
 s_opt=$3
@@ -10,10 +12,10 @@ function ftcount {
     out=$3
     s_option=$4
     outname=$(basename $bam | sed 's/Aligned.sortedByCoord.out.bam//g')
-    featureCounts -p -T 10 -s $s_option -a ${gtf} -o "${out}/opt_${s_opt}/${outname}.counts" ${bam}
+    featureCounts -p -T ${THREADS_MED} -s $s_option -a ${gtf} -o "${out}/opt_${s_opt}/${outname}.counts" ${bam}
 }
 
-gtf_mm10="/home/resources/genomes/Genomes/ensembl/hg38/Homo_sapiens.GRCh38.104.chr.gtf"
+gtf_mm10="${GTF_FILE}"
 
 find ${input_dir} -name "*.sortedByCoord.out.bam" | while read file;
 do

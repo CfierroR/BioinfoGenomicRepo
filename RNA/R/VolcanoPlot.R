@@ -1,7 +1,5 @@
 # Cargar las librerías necesarias
 library(ggplot2)
-library(ggrepel)
-library(tidyr)
 library(dplyr)
 
 args = commandArgs(trailingOnly=TRUE)

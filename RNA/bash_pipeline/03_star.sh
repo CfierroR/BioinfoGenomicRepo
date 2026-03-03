@@ -7,31 +7,33 @@
 #   [input_dir] is a folder with the fastq files
 #   [output_dir] is the destination folder
 
+source "$(dirname "$0")/pipeline_config.sh"
+
 input_dir=$1
 outdir=$2
 
 function star {
 	inputs=$1
 	genomedir=$2
-	gtf=$3 
+	gtf=$3
 	sampleid=$(basename $4)
-	
+
 	#outdir="../outputs/02_star"
 	mkdir -p ${outdir}/${sampleid}
 
 	echo "Analyzing samples: $sampleid"
-        STAR --runMode alignReads --runThreadN 30 --genomeDir $genomedir --sjdbGTFfile $gtf --sjdbOverhang 149 --readFilesIn $inputs --twopassMode Basic \
+        STAR --runMode alignReads --runThreadN ${THREADS_HIGH} --genomeDir $genomedir --sjdbGTFfile $gtf --sjdbOverhang 149 --readFilesIn $inputs --twopassMode Basic \
 	--outFileNamePrefix ${outdir}/${sampleid}/${sampleid} \
 	--readFilesCommand zcat \
 	--outSAMtype BAM SortedByCoordinate \
 	--outSAMattributes Standard \
 	--quantMode GeneCounts
-	 
- 
+
+
 }
 
-ref_mm10="/home/resources/genomes/Genomes/STAR_hg38"
-gtf_mm10="/home/resources/genomes/Genomes/ensembl/hg38/Homo_sapiens.GRCh38.104.chr.gtf"
+ref_mm10="${REF_GENOME}"
+gtf_mm10="${GTF_FILE}"
 
 find ${input_dir} -name "*.fq.gz" |  cut -f8 -d'/' | cut -f1,2 -d'_' | sort | uniq | while read id ;
 do

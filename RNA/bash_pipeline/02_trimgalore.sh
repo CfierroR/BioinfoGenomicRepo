@@ -1,4 +1,6 @@
 #!/bin/bash
+source "$(dirname "$0")/pipeline_config.sh"
+
 function trimgalore {
     r1=$1
     r2=$2
@@ -7,7 +9,7 @@ function trimgalore {
     outfile=$(basename "$r1" | sed 's/_R1.fastq.gz//g')
     mkdir -p ${outdir}/${outfile}
     #trim_galore -q 20 --phred33 --illumina --fastqc --cores 8 --paired $r1 $r2 -o ${outdir}/${outfile}
-    trim_galore -q 30 --illumina --phred33 --fastqc --cores 8 --paired $r1 $r2 -o ${outdir}/${outfile}
+    trim_galore -q 30 --illumina --phred33 --fastqc --cores ${THREADS_LOW} --paired $r1 $r2 -o ${outdir}/${outfile}
 }
 
 input_dir=$1
